@@ -23,5 +23,16 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
+    preview: {
+      host: true,
+      port: 5173,
+      proxy: {
+        "/api": {
+          target: backendTarget,
+          changeOrigin: true,
+          secure: false,
+        },
+      },
+    },
   };
 });
