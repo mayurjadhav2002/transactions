@@ -1,0 +1,10 @@
+model Account {
+  id            String        @id @default(uuid()) @db.Uuid
+  accountNumber String        @unique
+  name          String
+  balance       Decimal       @default(0) @db.Decimal(19, 4)
+  currency      String        @default("INR")
+  transactions  Transaction[]
+  createdAt     DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime      @updatedAt @db.Timestamptz(3)
+}

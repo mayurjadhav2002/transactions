@@ -1,0 +1,20 @@
+enum TransactionType {
+  CREDIT
+  DEBIT
+}
+
+model Transaction {
+  id           String          @id @default(uuid()) @db.Uuid
+  accountId    String          @db.Uuid
+  referenceId  String
+  type         TransactionType
+  amount       Decimal         @db.Decimal(19, 4)
+  balanceAfter Decimal         @db.Decimal(19, 4)
+  description  String?
+  createdAt    DateTime        @default(now()) @db.Timestamptz(3)
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@unique([accountId, referenceId])
+  @@index([accountId, createdAt])
+}
