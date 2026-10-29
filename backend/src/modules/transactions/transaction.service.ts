@@ -3,6 +3,7 @@ import { ApiError } from "@/utils/api-errors";
 import { Prisma } from "@/generated/prisma/client";
 import type {
   CreateTransactionInput,
+  TransferFundsInput,
   ListTransactionsQuery,
 } from "./transaction.schema";
 
@@ -93,6 +94,135 @@ export class TransactionService {
         });
 
         return transaction;
+      },
+      {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      },
+    );
+  }
+
+  async transferFunds(input: TransferFundsInput) {
+    const { fromAccountId, toAccountId, amount, referenceId, description } =
+      input;
+    const amountDecimal = new Prisma.Decimal(amount);
+
+    if (amountDecimal.lte(0)) {
+      throw new ApiError(
+        400,
+        "Transfer amount must be greater than 0",
+        "INVALID_AMOUNT",
+      );
+    }
+
+    return prisma.$transaction(
+      async (tx) => {
+        // Idempotency check on referenceId
+        const existingFrom = await tx.transaction.findUnique({
+          where: {
+            accountId_referenceId: {
+              accountId: fromAccountId,
+              referenceId,
+            },
+          },
+        });
+
+        if (existingFrom) {
+          throw new ApiError(
+            409,
+            `Transaction with referenceId '${referenceId}' already exists for source account`,
+            "DUPLICATE_REFERENCE_ID",
+          );
+        }
+
+        const [fromAccount, toAccount] = await Promise.all([
+          tx.account.findUnique({ where: { id: fromAccountId } }),
+          tx.account.findUnique({ where: { id: toAccountId } }),
+        ]);
+
+        if (!fromAccount) {
+          throw new ApiError(
+            404,
+            "Source account not found",
+            "SOURCE_ACCOUNT_NOT_FOUND",
+          );
+        }
+        if (!toAccount) {
+          throw new ApiError(
+            404,
+            "Destination account not found",
+            "DESTINATION_ACCOUNT_NOT_FOUND",
+          );
+        }
+
+        const fromBalance = new Prisma.Decimal(fromAccount.balance);
+        if (fromBalance.lt(amountDecimal)) {
+          throw new ApiError(
+            400,
+            `Insufficient funds in ${fromAccount.name}. Balance: ${fromBalance.toString()}, requested: ${amountDecimal.toString()}`,
+            "INSUFFICIENT_FUNDS",
+          );
+        }
+
+        const newFromBalance = fromBalance.minus(amountDecimal);
+        const toBalance = new Prisma.Decimal(toAccount.balance);
+        const newToBalance = toBalance.plus(amountDecimal);
+
+        await tx.account.update({
+          where: { id: fromAccountId },
+          data: { balance: newFromBalance },
+        });
+
+        await tx.account.update({
+          where: { id: toAccountId },
+          data: { balance: newToBalance },
+        });
+
+        const debitTx = await tx.transaction.create({
+          data: {
+            accountId: fromAccountId,
+            referenceId,
+            type: "DEBIT",
+            amount: amountDecimal,
+            balanceAfter: newFromBalance,
+            description: description || `Transfer to ${toAccount.name}`,
+          },
+          include: {
+            account: {
+              select: {
+                id: true,
+                accountNumber: true,
+                name: true,
+                currency: true,
+              },
+            },
+          },
+        });
+
+        const creditTx = await tx.transaction.create({
+          data: {
+            accountId: toAccountId,
+            referenceId: `${referenceId}-CR`,
+            type: "CREDIT",
+            amount: amountDecimal,
+            balanceAfter: newToBalance,
+            description: description || `Transfer from ${fromAccount.name}`,
+          },
+          include: {
+            account: {
+              select: {
+                id: true,
+                accountNumber: true,
+                name: true,
+                currency: true,
+              },
+            },
+          },
+        });
+
+        return {
+          fromTransaction: debitTx,
+          toTransaction: creditTx,
+        };
       },
       {
         isolationLevel: Prisma.TransactionIsolationLevel.Serializable,

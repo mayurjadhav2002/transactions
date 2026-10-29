@@ -4,8 +4,21 @@ import { accountService } from "./account.service";
 import {
   createAccountSchema,
   getAccountByIdSchema,
+  getAccountByNumberSchema,
   listAccountsQuerySchema,
 } from "./account.schema";
+
+export const getAccountByNumberHandler = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { accountNumber } = getAccountByNumberSchema.parse(req.params);
+    const account = await accountService.getAccountByNumber(accountNumber);
+
+    res.status(200).json({
+      success: true,
+      data: account,
+    });
+  },
+);
 
 export const createAccountHandler = asyncHandler(
   async (req: Request, res: Response) => {

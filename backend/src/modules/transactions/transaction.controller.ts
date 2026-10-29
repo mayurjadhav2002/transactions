@@ -3,9 +3,22 @@ import { asyncHandler } from "@/middleware/handlers/async-handler";
 import { transactionService } from "./transaction.service";
 import {
   createTransactionSchema,
+  transferFundsSchema,
   getTransactionByIdSchema,
   listTransactionsQuerySchema,
 } from "./transaction.schema";
+
+export const transferHandler = asyncHandler(
+  async (req: Request, res: Response) => {
+    const validatedBody = transferFundsSchema.parse(req.body);
+    const result = await transactionService.transferFunds(validatedBody);
+
+    res.status(201).json({
+      success: true,
+      data: result,
+    });
+  },
+);
 
 export const createTransactionHandler = asyncHandler(
   async (req: Request, res: Response) => {

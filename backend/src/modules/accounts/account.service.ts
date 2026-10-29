@@ -23,13 +23,30 @@ export class AccountService {
 
     const initialBalance = new Prisma.Decimal(input.initialBalance ?? 0);
 
-    return prisma.account.create({
-      data: {
-        name: input.name,
-        accountNumber,
-        currency: input.currency.toUpperCase(),
-        balance: initialBalance,
-      },
+    return prisma.$transaction(async (tx) => {
+      const account = await tx.account.create({
+        data: {
+          name: input.name,
+          accountNumber,
+          currency: input.currency.toUpperCase(),
+          balance: initialBalance,
+        },
+      });
+
+      if (initialBalance.gt(0)) {
+        await tx.transaction.create({
+          data: {
+            accountId: account.id,
+            referenceId: `DEP-${Date.now().toString().slice(-6)}`,
+            type: "CREDIT",
+            amount: initialBalance,
+            balanceAfter: initialBalance,
+            description: "Initial Deposit",
+          },
+        });
+      }
+
+      return account;
     });
   }
 
@@ -73,6 +90,11 @@ export class AccountService {
         take: limit,
         skip: offset,
         orderBy: { createdAt: "desc" },
+        include: {
+          _count: {
+            select: { transactions: true },
+          },
+        },
       }),
       prisma.account.count({ where }),
     ]);

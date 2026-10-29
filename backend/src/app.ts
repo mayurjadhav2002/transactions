@@ -11,7 +11,7 @@ import { CONSTANTS } from "./config/constants";
 const app = express();
 
 app.use(cors());
-app.use(helmet());
+app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.json());
 
 // api
