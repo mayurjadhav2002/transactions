@@ -197,12 +197,15 @@ docker compose down
 
 ## 📖 API Documentation
 
+> [!NOTE]
+> For the comprehensive specification with full request/response schemas, field validations, and error codes, refer to [API_DOCUMENTATION.md](./API_DOCUMENTATION.md).
+
 ### Accounts Endpoints (`/api/v1/accounts`)
 
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
 | `POST` | `/api/v1/accounts` | Create a new account with optional initial balance |
-| `GET` | `/api/v1/accounts` | List all accounts with pagination (`limit`, `offset`) |
+| `GET` | `/api/v1/accounts` | List accounts with pagination (`limit`, `offset`, `search`) |
 | `GET` | `/api/v1/accounts/:id` | Get account details by UUID |
 | `GET` | `/api/v1/accounts/number/:accountNumber` | Get account details by human-readable account number |
 
@@ -212,7 +215,7 @@ docker compose down
 | :--- | :--- | :--- |
 | `POST` | `/api/v1/transactions` | Post a single `CREDIT` or `DEBIT` transaction |
 | `POST` | `/api/v1/transactions/transfer` | Execute an atomic fund transfer between two accounts |
-| `GET` | `/api/v1/transactions` | List transactions with filters (`accountId`, `type`, `limit`, `offset`) |
+| `GET` | `/api/v1/transactions` | List transactions with filters (`page`, `limit`, `search`, `accountId`, `type`, `startDate`, `endDate`) |
 | `GET` | `/api/v1/transactions/:id` | Get single transaction record by UUID |
 
 ---
