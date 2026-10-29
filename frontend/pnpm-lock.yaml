@@ -32,9 +32,6 @@ importers:
       cn:
         specifier: ^0.5.0
         version: 0.5.0
-      frontend:
-        specifier: 'link:'
-        version: 'link:'
       lucide-react:
         specifier: ^1.63.0
         version: 1.63.0(@types/react@19.3.0)(react@19.3.1)
