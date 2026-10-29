@@ -7,6 +7,46 @@ import type {
   ListTransactionsQuery,
 } from "./transaction.schema";
 
+export function parseDateParam(
+  dateStr?: string,
+  isEndOfDay = false,
+): Date | undefined {
+  if (!dateStr || !dateStr.trim()) return undefined;
+  const trimmed = dateStr.trim();
+
+  // Match DD/MM/YYYY or DD-MM-YYYY
+  const ddmmyyyyMatch = trimmed.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  if (ddmmyyyyMatch) {
+    const day = parseInt(ddmmyyyyMatch[1], 10);
+    const month = parseInt(ddmmyyyyMatch[2], 10) - 1;
+    const year = parseInt(ddmmyyyyMatch[3], 10);
+    return isEndOfDay
+      ? new Date(Date.UTC(year, month, day, 23, 59, 59, 999))
+      : new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
+  }
+
+  // Match YYYY-MM-DD
+  const yyyymmddMatch = trimmed.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (yyyymmddMatch) {
+    const year = parseInt(yyyymmddMatch[1], 10);
+    const month = parseInt(yyyymmddMatch[2], 10) - 1;
+    const day = parseInt(yyyymmddMatch[3], 10);
+    return isEndOfDay
+      ? new Date(Date.UTC(year, month, day, 23, 59, 59, 999))
+      : new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
+  }
+
+  const parsed = new Date(trimmed);
+  if (!isNaN(parsed.getTime())) {
+    if (isEndOfDay && !trimmed.includes("T") && !trimmed.includes(":")) {
+      parsed.setUTCHours(23, 59, 59, 999);
+    }
+    return parsed;
+  }
+
+  return undefined;
+}
+
 export class TransactionService {
   async createTransaction(input: CreateTransactionInput) {
     const { accountId, referenceId, type, amount, description } = input;
@@ -253,7 +293,29 @@ export class TransactionService {
   }
 
   async listTransactions(query: ListTransactionsQuery) {
-    const { accountId, type, limit, offset } = query;
+    const {
+      accountId,
+      type,
+      page = 1,
+      limit = 10,
+      offset,
+      skip,
+      search,
+      q,
+      startDate,
+      endDate,
+      fromDate,
+      toDate,
+    } = query;
+
+    const effectiveLimit = Math.min(Math.max(limit, 1), 100);
+    const effectiveSkip =
+      skip !== undefined
+        ? skip
+        : offset !== undefined
+          ? offset
+          : (page - 1) * effectiveLimit;
+    const effectivePage = Math.floor(effectiveSkip / effectiveLimit) + 1;
 
     const where: Prisma.TransactionWhereInput = {};
     if (accountId) {
@@ -263,11 +325,36 @@ export class TransactionService {
       where.type = type;
     }
 
+    const searchQuery = search || q;
+    if (searchQuery && searchQuery.trim()) {
+      const queryStr = searchQuery.trim();
+      where.OR = [
+        { description: { contains: queryStr, mode: "insensitive" } },
+        { referenceId: { contains: queryStr, mode: "insensitive" } },
+        { account: { name: { contains: queryStr, mode: "insensitive" } } },
+        { account: { accountNumber: { contains: queryStr, mode: "insensitive" } } },
+      ];
+    }
+
+    const effectiveStartDate = parseDateParam(startDate || fromDate, false);
+    const effectiveEndDate = parseDateParam(endDate || toDate, true);
+
+    if (effectiveStartDate || effectiveEndDate) {
+      const createdAtFilter: Prisma.DateTimeFilter = {};
+      if (effectiveStartDate) {
+        createdAtFilter.gte = effectiveStartDate;
+      }
+      if (effectiveEndDate) {
+        createdAtFilter.lte = effectiveEndDate;
+      }
+      where.createdAt = createdAtFilter;
+    }
+
     const [transactions, total] = await Promise.all([
       prisma.transaction.findMany({
         where,
-        take: limit,
-        skip: offset,
+        take: effectiveLimit,
+        skip: effectiveSkip,
         orderBy: { createdAt: "desc" },
         include: {
           account: {
@@ -283,11 +370,22 @@ export class TransactionService {
       prisma.transaction.count({ where }),
     ]);
 
+    const totalPages = Math.max(1, Math.ceil(total / effectiveLimit));
+    const hasNextPage = effectivePage < totalPages;
+    const hasPrevPage = effectivePage > 1;
+
     return {
       transactions,
-      total,
-      limit,
-      offset,
+      meta: {
+        total,
+        page: effectivePage,
+        limit: effectiveLimit,
+        skip: effectiveSkip,
+        offset: effectiveSkip,
+        totalPages,
+        hasNextPage,
+        hasPrevPage,
+      },
     };
   }
 }

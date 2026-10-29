@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { Search, ArrowUpDown } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import {
@@ -15,26 +15,20 @@ import { SyncIndicator } from "@/components/common/SyncIndicator";
 import { Button } from "@/components/ui/button";
 import { TransactionsFilterBar } from "./TransactionsFilterBar";
 import { TransactionTableRow } from "./TransactionTableRow";
-import type { Transaction, Account } from "@/types";
+import { useTransactionsQuery } from "@/hooks/useFinanceQueries";
+import type { Account } from "@/types";
 
 interface TransactionsTableProps {
-  transactions: Transaction[];
   accounts: Account[];
-  isLoading?: boolean;
-  isFetching?: boolean;
-  isError?: boolean;
-  onRetry?: () => void;
+  onTotalCountChange?: (total: number) => void;
 }
 
 export const TransactionsTable = ({
-  transactions,
   accounts,
-  isLoading = false,
-  isFetching = false,
-  isError = false,
-  onRetry,
+  onTotalCountChange,
 }: TransactionsTableProps) => {
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedAccount, setSelectedAccount] = useState("all");
   const [selectedType, setSelectedType] = useState("all");
   const [fromDate, setFromDate] = useState("");
@@ -44,8 +38,51 @@ export const TransactionsTable = ({
 
   const pageSize = 10;
 
+  // Debounce search query before sending to backend
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+      setCurrentPage(1);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [search]);
+
+  // Query backend with pagination and all filter parameters
+  const {
+    data,
+    isLoading,
+    isFetching,
+    isError,
+    refetch,
+  } = useTransactionsQuery({
+    page: currentPage,
+    limit: pageSize,
+    search: debouncedSearch || undefined,
+    accountId: selectedAccount !== "all" ? selectedAccount : undefined,
+    type:
+      selectedType !== "all"
+        ? (selectedType.toUpperCase() as "CREDIT" | "DEBIT")
+        : undefined,
+    startDate: fromDate || undefined,
+    endDate: toDate || undefined,
+  });
+
+  const transactions = data?.transactions ?? [];
+  const meta = data?.meta;
+
+  const total = meta?.total ?? 0;
+  const totalPages =
+    meta?.totalPages ?? Math.max(1, Math.ceil(total / pageSize));
+  const startIndex = meta?.skip ?? (currentPage - 1) * pageSize;
+  const endIndex = startIndex + transactions.length;
+
+  useEffect(() => {
+    onTotalCountChange?.(total);
+  }, [total, onTotalCountChange]);
+
   const handleClearFilters = () => {
     setSearch("");
+    setDebouncedSearch("");
     setSelectedAccount("all");
     setSelectedType("all");
     setFromDate("");
@@ -53,45 +90,32 @@ export const TransactionsTable = ({
     setCurrentPage(1);
   };
 
-  const filtered = useMemo(() => {
-    return transactions.filter((tx) => {
-      if (search.trim()) {
-        const q = search.toLowerCase().trim();
-        const matches =
-          tx.description.toLowerCase().includes(q) ||
-          tx.referenceId.toLowerCase().includes(q) ||
-          tx.accountName.toLowerCase().includes(q);
-        if (!matches) return false;
-      }
+  const handleSelectAccount = (accId: string) => {
+    setSelectedAccount(accId);
+    setCurrentPage(1);
+  };
 
-      if (selectedAccount !== "all") {
-        if (tx.accountId !== selectedAccount) return false;
-      }
+  const handleSelectType = (t: string) => {
+    setSelectedType(t);
+    setCurrentPage(1);
+  };
 
-      if (selectedType !== "all") {
-        if (tx.type !== selectedType) return false;
-      }
+  const handleFromDateChange = (date: string) => {
+    setFromDate(date);
+    setCurrentPage(1);
+  };
 
-      return true;
-    });
-  }, [transactions, search, selectedAccount, selectedType]);
-
-  const sorted = useMemo(() => {
-    return [...filtered].sort((a, b) => {
-      if (sortOrder === "asc") {
-        return a.id.localeCompare(b.id);
-      }
-      return b.id.localeCompare(a.id);
-    });
-  }, [filtered, sortOrder]);
-
-  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
-  const startIndex = (currentPage - 1) * pageSize;
-  const paginatedTransactions = sorted.slice(startIndex, startIndex + pageSize);
+  const handleToDateChange = (date: string) => {
+    setToDate(date);
+    setCurrentPage(1);
+  };
 
   const toggleSort = () => {
     setSortOrder((prev) => (prev === "desc" ? "asc" : "desc"));
   };
+
+  const displayedTransactions =
+    sortOrder === "asc" ? [...transactions].reverse() : transactions;
 
   return (
     <Card className="p-0 overflow-hidden">
@@ -100,10 +124,15 @@ export const TransactionsTable = ({
           <div>
             <h2 className="font-bold text-base text-slate-900">All Transactions</h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Latest transactions across all accounts
+              {total > 0
+                ? `Showing ${startIndex + 1}–${Math.min(endIndex, total)} of ${total} transactions (max 10 per page)`
+                : "No transactions found"}
             </p>
           </div>
-          <SyncIndicator isFetching={isFetching && !isLoading} label="Syncing transactions..." />
+          <SyncIndicator
+            isFetching={isFetching && !isLoading}
+            label="Syncing with ledger..."
+          />
         </div>
 
         <div className="relative w-full sm:w-64">
@@ -113,11 +142,8 @@ export const TransactionsTable = ({
           <input
             type="text"
             value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setCurrentPage(1);
-            }}
-            placeholder="Search transactions..."
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search reference, account, note..."
             className="w-full rounded-lg border border-slate-200 bg-white py-1.5 pl-8 pr-3 text-xs text-slate-800 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors shadow-2xs"
           />
         </div>
@@ -126,19 +152,13 @@ export const TransactionsTable = ({
       <TransactionsFilterBar
         accounts={accounts}
         selectedAccountId={selectedAccount}
-        onSelectAccount={(accId) => {
-          setSelectedAccount(accId);
-          setCurrentPage(1);
-        }}
+        onSelectAccount={handleSelectAccount}
         selectedType={selectedType}
-        onSelectType={(t) => {
-          setSelectedType(t);
-          setCurrentPage(1);
-        }}
+        onSelectType={handleSelectType}
         fromDate={fromDate}
-        onFromDateChange={setFromDate}
+        onFromDateChange={handleFromDateChange}
         toDate={toDate}
-        onToDateChange={setToDate}
+        onToDateChange={handleToDateChange}
         onClearFilters={handleClearFilters}
       />
 
@@ -165,28 +185,26 @@ export const TransactionsTable = ({
         </TableHeader>
         <TableBody>
           {isLoading ? (
-            <TableSkeleton columns={8} rows={6} />
+            <TableSkeleton columns={8} rows={pageSize} />
           ) : isError ? (
             <TableRow>
               <TableCell colSpan={8} className="py-8 text-center text-rose-500">
                 <div className="flex flex-col items-center justify-center gap-2">
-                  <span>Unable to fetch transactions from the server.</span>
-                  {onRetry && (
-                    <Button variant="outline" size="sm" onClick={onRetry}>
-                      Try again
-                    </Button>
-                  )}
+                  <span>Unable to fetch transactions from backend service.</span>
+                  <Button variant="outline" size="sm" onClick={() => refetch()}>
+                    Try again
+                  </Button>
                 </div>
               </TableCell>
             </TableRow>
-          ) : paginatedTransactions.length === 0 ? (
+          ) : displayedTransactions.length === 0 ? (
             <TableRow>
               <TableCell colSpan={8} className="py-8 text-center text-slate-400">
-                No transactions found matching the filter criteria.
+                No transactions found matching your criteria.
               </TableCell>
             </TableRow>
           ) : (
-            paginatedTransactions.map((tx) => (
+            displayedTransactions.map((tx) => (
               <TransactionTableRow key={tx.id} transaction={tx} />
             ))
           )}
@@ -197,8 +215,8 @@ export const TransactionsTable = ({
         currentPage={currentPage}
         totalPages={totalPages}
         startIndex={startIndex}
-        endIndex={startIndex + pageSize}
-        totalItems={sorted.length}
+        endIndex={endIndex}
+        totalItems={total}
         itemName="transactions"
         onPageChange={setCurrentPage}
       />

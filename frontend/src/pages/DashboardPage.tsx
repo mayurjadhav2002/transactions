@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  Calendar,
-  ChevronDown,
   Plus,
   CreditCard,
   Coins,
@@ -29,8 +27,6 @@ export const DashboardPage = () => {
     totalDebits,
     creditTransactionsCount,
     debitTransactionsCount,
-    selectedDateRange,
-    setSelectedDateRange,
     searchQuery,
     isLoading,
     isFetching,
@@ -42,18 +38,9 @@ export const DashboardPage = () => {
     refetchAll,
   } = useFinance();
 
-  const [dateDropdownOpen, setDateDropdownOpen] = useState(false);
   const [accountModalOpen, setAccountModalOpen] = useState(false);
 
   const filteredTransactions = filterTransactions(transactions, searchQuery);
-
-  const datePresets = [
-    "Today",
-    "Last 7 Days",
-    "Oct 1, 2026 - Oct 28, 2026",
-    "Last 30 Days",
-    "This Quarter",
-  ];
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -68,36 +55,6 @@ export const DashboardPage = () => {
           <p className="text-xs text-slate-500 mt-0.5">
             Overview of your accounts and recent transactions
           </p>
-        </div>
-
-        <div className="relative self-start sm:self-auto">
-          <button
-            onClick={() => setDateDropdownOpen(!dateDropdownOpen)}
-            className="flex items-center gap-2 rounded-lg border border-slate-200/90 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-xs hover:bg-slate-50 transition-colors"
-          >
-            <Calendar className="size-3.5 text-slate-500" />
-            <span>{selectedDateRange}</span>
-            <ChevronDown className="size-3.5 text-slate-400" />
-          </button>
-
-          {dateDropdownOpen && (
-            <div className="absolute right-0 mt-1.5 w-52 rounded-xl border border-slate-200 bg-white py-1 shadow-lg z-30 text-xs">
-              {datePresets.map((preset) => (
-                <button
-                  key={preset}
-                  onClick={() => {
-                    setSelectedDateRange(preset);
-                    setDateDropdownOpen(false);
-                  }}
-                  className={`w-full text-left px-3.5 py-2 hover:bg-slate-50 transition-colors ${
-                    selectedDateRange === preset ? "font-semibold text-blue-600 bg-blue-50/50" : "text-slate-700"
-                  }`}
-                >
-                  {preset}
-                </button>
-              ))}
-            </div>
-          )}
         </div>
       </div>
 

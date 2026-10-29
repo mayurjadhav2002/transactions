@@ -52,11 +52,7 @@ export const listTransactionsHandler = asyncHandler(
     res.status(200).json({
       success: true,
       data: result.transactions,
-      meta: {
-        total: result.total,
-        limit: result.limit,
-        offset: result.offset,
-      },
+      meta: result.meta,
     });
   },
 );

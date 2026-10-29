@@ -36,14 +36,11 @@ const FinanceContext = createContext<FinanceContextType | undefined>(undefined);
 
 export const FinanceProvider = ({ children }: { children: ReactNode }) => {
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedDateRange, setSelectedDateRange] = useState(
-    "Oct 1, 2026 - Oct 28, 2026",
-  );
   const [sessionTransfers, setSessionTransfers] = useState<Transfer[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const accountsQuery = useAccountsQuery({ limit: 100 });
-  const transactionsQuery = useTransactionsQuery({ limit: 100 });
+  const transactionsQuery = useTransactionsQuery({ limit: 10 });
 
   const accounts: Account[] = useMemo(
     () => accountsQuery.data?.accounts || [],
@@ -215,8 +212,6 @@ export const FinanceProvider = ({ children }: { children: ReactNode }) => {
       transfers,
       searchQuery,
       setSearchQuery,
-      selectedDateRange,
-      setSelectedDateRange,
       addTransaction,
       addAccount,
       addTransfer,
@@ -253,7 +248,6 @@ export const FinanceProvider = ({ children }: { children: ReactNode }) => {
       transactions,
       transfers,
       searchQuery,
-      selectedDateRange,
       addTransaction,
       addAccount,
       addTransfer,

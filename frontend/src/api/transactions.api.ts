@@ -68,14 +68,22 @@ export const mapRawTransactionToTransaction = (
 };
 
 export interface FetchTransactionsParams {
+  page?: number;
   limit?: number;
   offset?: number;
+  skip?: number;
   accountId?: string;
-  type?: "CREDIT" | "DEBIT";
+  type?: "CREDIT" | "DEBIT" | "credit" | "debit" | "all";
+  search?: string;
+  q?: string;
+  startDate?: string;
+  endDate?: string;
+  fromDate?: string;
+  toDate?: string;
 }
 
 export const fetchTransactions = async (
-  params: FetchTransactionsParams = { limit: 50, offset: 0 },
+  params: FetchTransactionsParams = { limit: 10, page: 1 },
 ): Promise<{ transactions: Transaction[]; meta: PaginationMeta }> => {
   const { data } = await apiClient.get<ApiResponse<RawTransactionResponse[]>>(
     API_ENDPOINTS.TRANSACTIONS.LIST,
@@ -83,17 +91,29 @@ export const fetchTransactions = async (
   );
 
   const rawList = data.data || [];
+  const baseOffset =
+    params.skip ??
+    params.offset ??
+    ((params.page || 1) - 1) * (params.limit || 10);
+
   const transactions = rawList.map((raw, idx) =>
-    mapRawTransactionToTransaction(raw, (params.offset || 0) + idx),
+    mapRawTransactionToTransaction(raw, baseOffset + idx),
   );
+
+  const defaultMeta: PaginationMeta = {
+    total: transactions.length,
+    limit: params.limit || 10,
+    offset: baseOffset,
+    page: params.page || 1,
+    skip: baseOffset,
+    totalPages: Math.max(1, Math.ceil(transactions.length / (params.limit || 10))),
+    hasNextPage: false,
+    hasPrevPage: false,
+  };
 
   return {
     transactions,
-    meta: data.meta || {
-      total: transactions.length,
-      limit: params.limit || 50,
-      offset: params.offset || 0,
-    },
+    meta: data.meta ? { ...defaultMeta, ...data.meta } : defaultMeta,
   };
 };
 

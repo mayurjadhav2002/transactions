@@ -13,7 +13,6 @@ import { TablePagination } from "@/components/common/TablePagination";
 import { TableSkeleton } from "@/components/common/TableSkeleton";
 import { SyncIndicator } from "@/components/common/SyncIndicator";
 import { Button } from "@/components/ui/button";
-import { TransfersFilterBar } from "./TransfersFilterBar";
 import { TransferTableRow } from "./TransferTableRow";
 import type { Transfer } from "@/types";
 
@@ -33,19 +32,10 @@ export const TransfersTable = ({
   onRetry,
 }: TransfersTableProps) => {
   const [search, setSearch] = useState("");
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
 
   const pageSize = 10;
-
-  const handleClearFilters = () => {
-    setSearch("");
-    setFromDate("");
-    setToDate("");
-    setCurrentPage(1);
-  };
 
   const filtered = useMemo(() => {
     return transfers.filter((t) => {
@@ -111,14 +101,6 @@ export const TransfersTable = ({
           />
         </div>
       </div>
-
-      <TransfersFilterBar
-        fromDate={fromDate}
-        onFromDateChange={setFromDate}
-        toDate={toDate}
-        onToDateChange={setToDate}
-        onClearFilters={handleClearFilters}
-      />
 
       <Table>
         <TableHeader>

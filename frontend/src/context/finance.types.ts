@@ -14,8 +14,6 @@ export interface FinanceContextType {
 
   searchQuery: string;
   setSearchQuery: (query: string) => void;
-  selectedDateRange: string;
-  setSelectedDateRange: (range: string) => void;
 
   addTransaction: (payload: NewTransactionPayload) => Promise<boolean>;
   addAccount: (payload: NewAccountPayload) => Promise<boolean>;

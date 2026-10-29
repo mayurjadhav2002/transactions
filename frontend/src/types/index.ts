@@ -88,6 +88,11 @@ export interface PaginationMeta {
   total: number;
   limit: number;
   offset: number;
+  page?: number;
+  skip?: number;
+  totalPages?: number;
+  hasNextPage?: boolean;
+  hasPrevPage?: boolean;
 }
 
 export interface ApiResponse<T> {
